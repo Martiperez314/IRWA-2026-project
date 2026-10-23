@@ -32,6 +32,25 @@
 
 
 ----
+## Project parts (IRWA 2026)
+
+| Part | Folder | How to run |
+|---|---|---|
+| Part 1 - Text Processing and EDA | [`project_progress/part_1`](project_progress/part_1) | see [`project_progress/part_1/README.md`](project_progress/part_1/README.md) |
+| Part 2 - Indexing and Evaluation | `project_progress/part_2` | *(to do)* |
+| Part 3 - Ranking and Filtering | `project_progress/part_3` | *(to do)* |
+| Part 4 - RAG, UI and Web Analytics | `web_app.py`, `myapp/` | see "Starting the Web App" below |
+
+Shared pre-processing code: `myapp/search/preprocessing.py`.
+
+**Quick start (Part 1):** set up the virtualenv as explained below, then
+```bash
+pip install -r requirements.txt
+python -m spacy download en_core_web_sm
+# copy fashion_products_dataset.json and validation_labels.csv into data/
+jupyter notebook project_progress/part_1/part_1.ipynb   # Run All
+```
+
 ## To download this repo locally
 
 Open a terminal console and execute:
