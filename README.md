@@ -37,7 +37,7 @@
 | Part | Folder | How to run |
 |---|---|---|
 | Part 1 - Text Processing and EDA | [`project_progress/part_1`](project_progress/part_1) | see [`project_progress/part_1/README.md`](project_progress/part_1/README.md) |
-| Part 2 - Indexing and Evaluation | `project_progress/part_2` | *(to do)* |
+| Part 2 - Indexing and Evaluation | [`project_progress/part_2`](project_progress/part_2) | see [`project_progress/part_2/README.md`](project_progress/part_2/README.md) |
 | Part 3 - Ranking and Filtering | `project_progress/part_3` | *(to do)* |
 | Part 4 - RAG, UI and Web Analytics | `web_app.py`, `myapp/` | see "Starting the Web App" below |
 
