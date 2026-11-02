@@ -5,9 +5,8 @@
 | File | What it is |
 |---|---|
 | `part_2.ipynb` | Notebook with the whole solution: inverted index, AND search, test queries, TF-IDF ranking and evaluation |
-| `our_queries_labels_template.csv` | Top 20 results of each of our test queries, written by the notebook (section 2.3.a) to be labelled |
 | `our_queries_labels.csv` | Our relevance judgements (1 / 0) for the test queries, same format as `validation_labels.csv` |
-| `IRWA-2026-uXXXXXX-uXXXXXX-uXXXXXX-part-2.pdf` | Report *(added before delivery)* |
+| `IRWA-2026-u232620-u232621-u232628-part-2.pdf` | Report |
 
 The reusable code is in `myapp/search/` (repository root):
 
