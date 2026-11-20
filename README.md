@@ -38,7 +38,7 @@
 |---|---|---|
 | Part 1 - Text Processing and EDA | [`project_progress/part_1`](project_progress/part_1) | see [`project_progress/part_1/README.md`](project_progress/part_1/README.md) |
 | Part 2 - Indexing and Evaluation | [`project_progress/part_2`](project_progress/part_2) | see [`project_progress/part_2/README.md`](project_progress/part_2/README.md) |
-| Part 3 - Ranking and Filtering | `project_progress/part_3` | *(to do)* |
+| Part 3 - Ranking and Filtering | [`project_progress/part_3`](project_progress/part_3) | see [`project_progress/part_3/README.md`](project_progress/part_3/README.md) |
 | Part 4 - RAG, UI and Web Analytics | `web_app.py`, `myapp/` | see "Starting the Web App" below |
 
 Shared pre-processing code: `myapp/search/preprocessing.py`.

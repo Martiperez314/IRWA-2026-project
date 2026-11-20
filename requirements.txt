@@ -72,3 +72,5 @@ matplotlib==3.10.3
 wordcloud==1.9.4
 spacy==3.8.7
 notebook==7.4.5
+# --- added for Part 3 (word2vec) ---
+gensim==4.4.0
