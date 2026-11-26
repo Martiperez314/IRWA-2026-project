@@ -98,11 +98,23 @@ class StatsDocument(BaseModel):
 
 
 class ResultItem(BaseModel):
+    """One product in the results page (Part 4: the fields the statement asks for, and a few more)."""
     pid: str
     title: str
     description: Optional[str] = None
-    url: Optional[str] = None
-    ranking: Optional[float] = None
+    url: Optional[str] = None               # original product page (Flipkart)
+    ranking: Optional[float] = None         # score of our ranking
+    rank: Optional[int] = None              # position in the results (1 = first)
+    brand: Optional[str] = None
+    sub_category: Optional[str] = None
+    selling_price: Optional[float] = None
+    actual_price: Optional[float] = None
+    discount: Optional[float] = None
+    average_rating: Optional[float] = None
+    out_of_stock: bool = False
+    image: Optional[str] = None
+    duplicates: int = 0                     # other identical listings grouped under this result
+    search_id: Optional[int] = None         # analytics id of the query that produced this result
 
     def __str__(self) -> str:
         return self.model_dump_json(indent=2)

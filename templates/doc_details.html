@@ -1,18 +1,83 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Document Detail - IRWA Search Engine</title>
-</head>
-<body>
-<div><a href="/" >Home</a></div>
-<div><a href="/stats" >Stats</a></div>
-<div><a href="/dashboard" >Dashboard</a></div>
-<h1>Document Detail Page</h1>
-<p>This is a placeholder for document details.</p>
-<p>Here you can display more information about the document.</p>
-<p>For example, you might show the full text of the document, metadata, or other relevant details.</p>
-<p>You can also include links to related documents or resources.</p>
-<p>Feel free to customize this page to fit the needs of your application.</p>
-</body>
-</html>
+{% extends "base.html" %}
+{% block page_title %}{{ page_title }}{% endblock %}
+{% block content %}
+    <div class="mb-2" style="font-size:.9em">
+        {% if back_url %}<a href="{{ back_url }}">‹ Back to results</a>{% else %}<a href="{{ url_for('index') }}">‹ New search</a>{% endif %}
+    </div>
+    <div class="detail">
+        <div class="detail-grid">
+            {% if doc.images %}
+            <div class="gallery">
+                    <img id="main-img" src="{{ doc.images[0] }}" alt="{{ doc.title }}" onerror="this.style.visibility='hidden'">
+                    {% if doc.images|length > 1 %}
+                        <div class="thumbs">
+                            {% for img in doc.images %}
+                                <img src="{{ img }}" alt="" loading="lazy" onerror="this.style.display='none'"
+                                     onclick="document.getElementById('main-img').src=this.src">
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+            </div>
+            {% endif %}
+            <div class="detail-info">
+                <h4 style="font-weight:700">{{ doc.title }}</h4>
+                <div class="result-meta">
+                    {% if doc.brand %}{{ doc.brand }} · {% endif %}{{ doc.category }}{% if doc.sub_category %} › {{ doc.sub_category }}{% endif %}
+                </div>
+                <div class="my-2">
+                    <span class="price">{{ doc.selling_price|price }}</span>
+                    {% if doc.discount %}<span class="price-old">{{ doc.actual_price|price }}</span>
+                        <span class="badge-off">{{ "%.0f"|format(doc.discount) }}% off</span>{% endif %}
+                </div>
+                <div class="mb-2">
+                    {% if doc.average_rating is not none %}<span class="rating">{{ "%.1f"|format(doc.average_rating) }} ★</span>
+                    {% else %}<span class="rating none">No rating yet</span>{% endif %}
+                    {% if doc.out_of_stock %}<span class="oos ml-2">Out of stock</span>
+                    {% else %}<span class="badge-off ml-2">In stock</span>{% endif %}
+                </div>
+                <a class="btn btn-primary btn-sm mb-3" target="_blank" rel="noopener"
+                   href="{{ url_for('external_link', pid=doc.pid, qid=qid, rank=rank) }}">View on Flipkart ↗</a>
+
+                <h6 class="mt-2" style="font-weight:700">Description</h6>
+                <p style="font-size:.93em">{{ doc.description or "No description." }}</p>
+
+                <table class="table table-sm">
+                    <tbody>
+                    <tr><th>Seller</th><td>{{ doc.seller or "Unknown" }}</td></tr>
+                    <tr><th>Brand</th><td>{{ doc.brand or "Unknown" }}</td></tr>
+                    <tr><th>Category</th><td>{{ doc.category }}{% if doc.sub_category %} › {{ doc.sub_category }}{% endif %}</td></tr>
+                    {% for key, value in (doc.product_details or {}).items() %}
+                        <tr><th>{{ key }}</th><td>{{ value }}</td></tr>
+                    {% endfor %}
+                    <tr><th>Product id (pid)</th><td><code>{{ doc.pid }}</code></td></tr>
+                    <tr><th>Times opened from a search</th><td>{{ clicks }}</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+    {% if click_id %}
+    <script>
+        // Dwell time: how long the product page was visible before the user left it
+        // (sent with sendBeacon, which also works while the page is closing).
+        let visibleMs = 0, since = document.visibilityState === "visible" ? performance.now() : null, sent = false;
+        document.addEventListener("visibilitychange", function () {
+            if (document.visibilityState === "hidden" && since !== null) { visibleMs += performance.now() - since; since = null; send(); }
+            else if (document.visibilityState === "visible") { since = performance.now(); sent = false; }
+        });
+        window.addEventListener("pagehide", function () {
+            if (since !== null) { visibleMs += performance.now() - since; since = null; }
+            send();
+        });
+        function send() {
+            if (sent || visibleMs <= 0) return;
+            sent = true;
+            navigator.sendBeacon("{{ url_for('track_dwell') }}",
+                new Blob([JSON.stringify({click_id: {{ click_id }}, ms: Math.round(visibleMs)})], {type: "application/json"}));
+        }
+    </script>
+    {% endif %}
+{% endblock %}

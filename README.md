@@ -39,7 +39,7 @@
 | Part 1 - Text Processing and EDA | [`project_progress/part_1`](project_progress/part_1) | see [`project_progress/part_1/README.md`](project_progress/part_1/README.md) |
 | Part 2 - Indexing and Evaluation | [`project_progress/part_2`](project_progress/part_2) | see [`project_progress/part_2/README.md`](project_progress/part_2/README.md) |
 | Part 3 - Ranking and Filtering | [`project_progress/part_3`](project_progress/part_3) | see [`project_progress/part_3/README.md`](project_progress/part_3/README.md) |
-| Part 4 - RAG, UI and Web Analytics | `web_app.py`, `myapp/` | see "Starting the Web App" below |
+| Part 4 - RAG, UI and Web Analytics | `web_app.py`, `myapp/`, [`project_progress/part_4`](project_progress/part_4) | see [`project_progress/part_4/README.md`](project_progress/part_4/README.md) |
 
 Shared pre-processing code: `myapp/search/preprocessing.py`.
 
@@ -113,7 +113,7 @@ Enjoy!
 python -V
 # Make sure we use Python 3
 
-cd search-engine-web-app
+# from the root of the repository (needs the .env file: see project_progress/part_4/README.md)
 python web_app.py
 ```
 The above will start a web server with the application:

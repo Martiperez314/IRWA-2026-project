@@ -1,31 +1,180 @@
 {% extends "base.html" %}
 {% block page_title %}{{ page_title }}{% endblock %}
-
-{% block header %}
-    <!-- Next tag loads Charts.js https://www.chartjs.org/docs/latest/ -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.6.2/chart.min.js"
-            integrity="sha512-tMabqarPtykgDtdtSqCL3uLVM0gS1ZkUAVhRFu1vSEFgvB73niFQWJuvviDyBGBH22Lcau4rHB5p2K2T0Xvr6Q=="
-            crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-{% endblock %}
-
 {% block content %}
+    {% set k = data.kpis %}
+    <div class="d-flex align-items-baseline flex-wrap mb-2" style="gap:12px">
+        <h3 style="font-weight:700;margin:0">Usage dashboard</h3>
+        <span class="text-muted" style="font-size:.9em">
+            Data kept in memory since the app started.
+            {% if k.simulated_sessions %}
+                {{ k.simulated_sessions }} of {{ k.sessions }} sessions come from <code>simulate_traffic.py</code>.
+                {% if include_simulated %}<a href="{{ url_for('dashboard', real_only=1) }}">Show only real visits</a>
+                {% else %}<a href="{{ url_for('dashboard') }}">Include simulated visits</a>{% endif %}
+            {% endif %}
+            · <a href="{{ url_for('analytics_export') }}">Download all data (JSON)</a>
+        </span>
+    </div>
 
-    <!--
-    Examples of what to show in Dashboard:
+    {# ------------------------------------------------------------ key indicators #}
+    <div class="kpis">
+        <div class="kpi"><div class="value">{{ k.visitors }}</div><div class="label">Visitors (browsers)</div></div>
+        <div class="kpi"><div class="value">{{ k.sessions }}</div><div class="label">Sessions (sit-downs)</div></div>
+        <div class="kpi"><div class="value">{{ k.queries }}</div><div class="label">Queries</div></div>
+        <div class="kpi"><div class="value">{{ k.clicks }}</div><div class="label">Clicks on results</div></div>
+        <div class="kpi"><div class="value">{{ k.ctr }}%</div><div class="label">Queries with ≥ 1 click (CTR)</div></div>
+        <div class="kpi"><div class="value">{{ k.mrr }}</div><div class="label">MRR of clicks</div></div>
+        <div class="kpi"><div class="value">{{ k.avg_clicked_rank }}</div><div class="label">Avg. rank of clicked result</div></div>
+        <div class="kpi"><div class="value">{{ k.avg_dwell_s }} s</div><div class="label">Avg. dwell time</div></div>
+        <div class="kpi"><div class="value">{{ k.zero_results }}%</div><div class="label">Queries with 0 results</div></div>
+        <div class="kpi"><div class="value">{{ k.fallback }}%</div><div class="label">Queries needing the fallback</div></div>
+        <div class="kpi"><div class="value">{{ k.avg_terms }}</div><div class="label">Avg. words per query</div></div>
+        <div class="kpi"><div class="value">{{ k.queries_per_session }}</div><div class="label">Queries per session</div></div>
+        <div class="kpi"><div class="value">{{ k.missions }}</div><div class="label">Missions ({{ k.queries_per_mission }} queries each)</div></div>
+        <div class="kpi"><div class="value">{{ k.research_missions }}</div><div class="label">Missions over several sessions</div></div>
+        <div class="kpi"><div class="value">{{ k.avg_response_ms }} ms</div><div class="label">Avg. search time (p95 {{ k.p95_response_ms }} ms)</div></div>
+        <div class="kpi"><div class="value">{{ k.requests }}</div><div class="label">HTTP requests</div></div>
+    </div>
 
-    - Ranking of visited documents (from results page)
-    - Visitor's preferred browsers
-    - Visitor's city (from IP)
-    - preferred queries ranking
-    - preferred terms
-    - etc.
+    {# ------------------------------------------------------------ activity #}
+    <div class="grid-2">
+        <div class="panel">
+            <h5>Activity over time (per {{ data.days.step }})</h5>
+            <p class="explain">HTTP requests and queries per {{ data.days.step }} (the step adapts to the period covered:
+                minutes, hours or days). Requests include every page (results, product pages, dashboard); the gap between
+                the two lines is how much people browse besides searching.</p>
+            <div id="chart-days"></div>
+        </div>
+        <div class="panel">
+            <h5>Queries by hour of the day</h5>
+            <p class="explain">When people search (server time). Peaks show the best moments for campaigns or
+                maintenance windows to avoid.</p>
+            <div id="chart-hours"></div>
+        </div>
+    </div>
 
-    -->
+    {# ------------------------------------------------------------ queries #}
+    <div class="grid-2">
+        <div class="panel">
+            <h5>Most frequent queries</h5>
+            <p class="explain">The exact queries typed most often (lower-cased). They show what users want and which
+                queries matter most to rank well.</p>
+            <div id="chart-queries"></div>
+        </div>
+        <div class="panel">
+            <h5>Most frequent terms</h5>
+            <p class="explain">Terms after our pre-processing (stems: <code>jean</code>, <code>sleev</code>). Gender and
+                product-type words dominate, which supports the gender factor of our score.</p>
+            <div id="chart-terms"></div>
+        </div>
+    </div>
+    <div class="grid-2">
+        <div class="panel">
+            <h5>Query length</h5>
+            <p class="explain">Words per query. Short queries (1–2 words) are ambiguous and return many results;
+                long ones risk 0 results with the AND search, which is why the fallback exists.</p>
+            <div id="chart-length"></div>
+        </div>
+        <div class="panel">
+            <h5>Queries without good results (content gaps)</h5>
+            <p class="explain">Queries with no results, or answered only with partial matches (fallback). They point to
+                missing products, typos or vocabulary the index does not know.</p>
+            {% if data.gaps %}
+                <table class="table table-sm data-table">
+                    <thead><tr><th>Query</th><th>What happened</th><th>Times</th></tr></thead>
+                    <tbody>
+                    {% for g in data.gaps %}
+                        <tr><td>{{ g.query }}</td><td>{{ "no results" if g.mode == "none" else ("partial match" if g.mode == "partial" else "filtered to 0") }}</td><td>{{ g.count }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}<p class="chart-empty">No problematic queries yet.</p>{% endif %}
+        </div>
+    </div>
 
-    <h3>Dashboard</h3>
-    <iframe src="/plot_number_of_views" width="600" height="400" style="border: none;"></iframe>
+    {# ------------------------------------------------------------ clicks #}
+    <div class="grid-2">
+        <div class="panel">
+            <h5>Clicks by position in the results</h5>
+            <p class="explain">How many clicks each rank gets. A steep drop after the first positions is the usual
+                position bias; clicks spread far down the list suggest the best products are not ranked first.</p>
+            <div id="chart-ranks"></div>
+        </div>
+        <div class="panel">
+            <h5>Dwell time</h5>
+            <p class="explain">Time spent on a product page after clicking a result, until the user goes back or
+                leaves. Very short visits (&lt; 5 s) usually mean the result was not what the user wanted.</p>
+            <div id="chart-dwell"></div>
+        </div>
+    </div>
+    <div class="panel">
+        <h5>Most clicked products</h5>
+        <p class="explain">Products opened most often from a results page, with the average rank they had and the
+            average time spent on them.</p>
+        {% if data.top_products %}
+            <table class="table table-sm data-table">
+                <thead><tr><th>Product</th><th>Clicks</th><th>Avg. rank</th><th>Avg. dwell</th></tr></thead>
+                <tbody>
+                {% for p in data.top_products %}
+                    <tr><td><a href="{{ url_for('doc_details', pid=p.pid) }}">{{ p.title }}</a></td><td>{{ p.clicks }}</td>
+                        <td>{{ p.avg_rank }}</td><td>{{ p.avg_dwell_s }} s</td></tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        {% else %}<p class="chart-empty">No clicks yet.</p>{% endif %}
+    </div>
 
-
+    {# ------------------------------------------------------------ users #}
+    <div class="grid-2">
+        <div class="panel">
+            <h5>Browsers</h5>
+            <p class="explain">Share of sessions per browser (from the User-Agent header). Tells which browsers the
+                site must be tested on.</p>
+            <div id="chart-browsers"></div>
+        </div>
+        <div class="panel">
+            <h5>Operating systems and devices</h5>
+            <p class="explain">Sessions per operating system and per device type (desktop, mobile, tablet, bot). A big
+                mobile share would ask for a mobile-first design.</p>
+            <div id="chart-os"></div>
+            <div class="mt-3" id="chart-devices"></div>
+        </div>
+    </div>
+    <div class="grid-2">
+        <div class="panel">
+            <h5>Queries per session</h5>
+            <p class="explain">How many queries people type in one sit-down (a session ends after 30 minutes without
+                activity). Many queries per session can mean users reformulate because the first results were poor.</p>
+            <div id="chart-sessions"></div>
+        </div>
+        <div class="panel">
+            <h5>Filters and pages used</h5>
+            <p class="explain">How often each filter of the results page was used, and which pages get the most
+                requests.</p>
+            <div id="chart-filters"></div>
+            <div class="mt-3" id="chart-pages"></div>
+        </div>
+    </div>
 {% endblock %}
 
-
+{% block scripts %}
+    <script src="{{ url_for('static', filename='js/charts.js') }}"></script>
+    <script>
+        const D = {{ data|tojson }};
+        IRWACharts.lines(document.getElementById("chart-days"),
+            {labels: D.days.labels, series: [{name: "Requests", values: D.days.requests}, {name: "Queries", values: D.days.queries}]});
+        IRWACharts.bars(document.getElementById("chart-hours"), D.hours, {xTitle: "Hour", unit: "queries"});
+        IRWACharts.meters(document.getElementById("chart-queries"), D.top_queries, {name: "Query"});
+        IRWACharts.meters(document.getElementById("chart-terms"), D.top_terms, {name: "Term"});
+        IRWACharts.bars(document.getElementById("chart-length"), D.query_length, {xTitle: "Words per query", unit: "queries"});
+        IRWACharts.bars(document.getElementById("chart-ranks"), D.rank_clicks, {xTitle: "Rank of the clicked result", unit: "clicks"});
+        IRWACharts.bars(document.getElementById("chart-dwell"), D.dwell, {xTitle: "Time on the product page", unit: "clicks"});
+        IRWACharts.meters(document.getElementById("chart-browsers"), D.browsers, {name: "Browser", share: true});
+        IRWACharts.meters(document.getElementById("chart-os"), D.os, {name: "Operating system", share: true});
+        IRWACharts.meters(document.getElementById("chart-devices"), D.devices, {name: "Device", share: true});
+        IRWACharts.bars(document.getElementById("chart-sessions"),
+            D.sessions_queries,
+            {xTitle: "Queries in the session", unit: "sessions"});
+        IRWACharts.meters(document.getElementById("chart-filters"), D.filters, {name: "Filter"});
+        IRWACharts.meters(document.getElementById("chart-pages"), D.pages, {name: "Page", share: true});
+    </script>
+{% endblock %}

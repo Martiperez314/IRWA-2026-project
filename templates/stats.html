@@ -1,15 +1,36 @@
 {% extends "base.html" %}
 {% block page_title %}{{ page_title }}{% endblock %}
 {% block content %}
-    <h2>Quick Stats</h2>
-    <h4>Clicked docs:</h4>
-
-    {% for doc in clicks_data %}
-        <div class="pb-3">
-            <div class="">
-                <span class="text-dark"> ({{ doc.count }} visits) </span> — id: {{ doc.pid }} — {{ doc.title }} - {{ doc.description }}
-            </div>
+    <h3 style="font-weight:700">Analytics data model</h3>
+    <p class="text-muted" style="font-size:.9em">
+        Star schema kept in memory: three fact tables (<strong>requests</strong>, <strong>queries</strong>,
+        <strong>clicks</strong>) that point to the <strong>sessions</strong> dimension (session_id), and clicks also
+        point to the query (query_id) and to the product (pid, the corpus). Last 15 rows of each table, newest first.
+        <a href="{{ url_for('analytics_export') }}">Download everything as JSON</a>.
+    </p>
+    {% for name, desc in [("sessions", "Dimension: one physical session (sit-down) of a visitor, with browser, OS, device and IP."),
+                          ("queries", "Fact: each new search, with its terms, results, mission and filters used."),
+                          ("clicks", "Fact: each click on a result (product page or original website), its rank and dwell time."),
+                          ("requests", "Fact: every HTTP request with its status and response time.")] %}
+        {% set rows = tables[name][-15:]|reverse|list %}
+        <div class="panel" style="overflow-x:auto">
+            <h5>{{ name }} <span class="text-muted" style="font-weight:400;font-size:.85em">({{ tables[name]|length }} rows)</span></h5>
+            <p class="explain">{{ desc }}</p>
+            {% if rows %}
+                <table class="table table-sm data-table">
+                    <thead><tr>{% for col in rows[0].keys() %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+                    <tbody>
+                    {% for row in rows %}
+                        <tr>{% for col, value in row.items() %}
+                            <td>{% if col in ("start", "last_seen", "timestamp") %}{{ value|int|string|datetime_fmt }}
+                                {% elif col == "user_agent" %}{{ value|truncate(40) }}
+                                {% elif col == "pid" %}<a href="{{ url_for('doc_details', pid=value) }}" title="{{ titles(value) }}">{{ value }}</a>
+                                {% else %}{{ value }}{% endif %}</td>
+                        {% endfor %}</tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}<p class="chart-empty">Empty.</p>{% endif %}
         </div>
-        <hr>
     {% endfor %}
 {% endblock %}

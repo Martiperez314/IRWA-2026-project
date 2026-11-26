@@ -1,27 +1,162 @@
 {% extends "base.html" %}
 {% block page_title %}{{ page_title }}{% endblock %}
+{% block topbar_search %}
+    <form class="topbar-search" method="GET" action="{{ url_for('search') }}" role="search">
+        <input class="form-control" name="q" type="search" value="{{ query }}" aria-label="Search" required maxlength="200">
+        <button class="btn btn-primary" type="submit">Search</button>
+    </form>
+{% endblock %}
 {% block content %}
-    Found <strong>{{ found_counter }}</strong> results...
-    <hr>
-    {% if rag_response %}
-        <div class="mb-4 p-3" style="border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9;">
-            <h5>AI-Generated Summary:</h5>
-            <p>{{ rag_response }}</p>
-        </div>
+    {# ---------- filters (GET form: keeps q and qid so it is the same query in the analytics) ---------- #}
+    <form class="filters" method="GET" action="{{ url_for('search') }}">
+        <input type="hidden" name="q" value="{{ query }}">
+        <input type="hidden" name="qid" value="{{ qid }}">
+        <label>Sort by
+            <select class="form-control form-control-sm" name="sort" onchange="this.form.submit()">
+                {% for key, label in sort_options.items() %}
+                    <option value="{{ key }}" {% if filters.sort == key %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>Max price (₹)
+            <input class="form-control form-control-sm" type="number" min="0" step="50" name="max_price"
+                   value="{{ filters.max_price|int if filters.max_price is not none else '' }}">
+        </label>
+        <label>Min rating
+            <select class="form-control form-control-sm" name="min_rating" onchange="this.form.submit()">
+                <option value="">Any</option>
+                {% for r in [3, 3.5, 4, 4.5] %}
+                    <option value="{{ r }}" {% if filters.min_rating == r %}selected{% endif %}>{{ r }}+</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label><input type="checkbox" name="stock" value="1" onchange="this.form.submit()"
+                      {% if filters.in_stock_only %}checked{% endif %}> In stock only</label>
+        <label title="Show each product once, even if it is listed several times (other sizes or sellers)">
+            <input type="hidden" name="group" value="{{ '1' if filters.group_duplicates else '0' }}" id="group-value">
+            <input type="checkbox" {% if filters.group_duplicates %}checked{% endif %}
+                   onchange="document.getElementById('group-value').value = this.checked ? '1' : '0'; this.form.submit()">
+            Group identical listings</label>
+        <button class="btn btn-sm btn-outline-secondary" type="submit">Apply</button>
+    </form>
+
+    {# ---------- what was found ---------- #}
+    <div class="result-info">
+        {% if response.total %}
+            Found <strong>{{ "{:,}".format(response.total) }}</strong> products
+            {% if response.total_before_filters != response.total %}
+                ({{ "{:,}".format(response.total_before_filters) }} before filters and grouping)
+            {% endif %}
+            in {{ "%.0f"|format(response.took_ms) }} ms
+        {% endif %}
+    </div>
+    {% if response.price_from_query %}
+        <div class="result-info">Price limit read from your query: <strong>{{ response.price_from_query }}</strong>.</div>
     {% endif %}
-    <hr>
-    {% for item in results_list %}
-        <div class="pb-3">
-            <div class="doc-title">
-                <a href="{{ item.url }}">{{ item.title }}...
-                </a>
-            </div>
-            <div class="doc-desc">
-                {{ item.doc_date }} — {{ item.description }}
-            </div>
+    {% if response.suggestion %}
+        <div class="notice">Did you mean <a href="{{ url_for('search', q=response.suggestion) }}"><strong>{{ response.suggestion }}</strong></a>?</div>
+    {% endif %}
+    {% if response.unknown_terms %}
+        <div class="notice">No product contains the word{{ 's' if response.unknown_terms|length > 1 }}
+            <strong>{{ response.unknown_terms|join(", ") }}</strong>, so we ignored {{ 'them' if response.unknown_terms|length > 1 else 'it' }}.
+            Check the spelling or try another word.</div>
+    {% endif %}
+    {% if response.mode == "partial" %}
+        <div class="notice">No product contains all your words. These are the closest matches
+            {% if response.missing_terms %}(some lack: <strong>{{ response.missing_terms|join(", ") }}</strong>){% endif %}.</div>
+    {% endif %}
 
+    {% if response.mode == "none" or not response.total %}
+        <div class="panel">
+            <h5>No products found for “{{ query }}”</h5>
+            <p class="explain">
+                {% if response.mode != "none" %}The filters removed every result: try removing some of them.
+                {% else %}Try fewer or more general words, for example a product type and a gender: “men jeans”, “women kurta”.{% endif %}
+            </p>
+        </div>
+    {% else %}
+        {# ---------- AI summary (RAG), loaded after the page is shown ---------- #}
+        <div class="summary-card" id="summary">
+            <h5>AI summary of these results</h5>
+            <div id="summary-text" class="summary-loading">Generating a summary of the top results…</div>
+            <div class="muted mt-2" id="summary-note">Generated by an LLM (Groq) from the top 8 results below; it can make mistakes.
+                <a href="#" id="summary-compare">Compare with the baseline prompt</a></div>
         </div>
 
-    {% endfor %}
+        {# ---------- results ---------- #}
+        {% for item in response.results %}
+            {% set details = url_for('doc_details', pid=item.pid, qid=qid, rank=item.rank, src='results') %}
+            <div class="result">
+                {% if item.image %}
+                    <img class="result-img" src="{{ item.image }}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+                {% else %}<div class="result-img"></div>{% endif %}
+                <div class="result-body">
+                    <div class="result-title"><a href="{{ details }}">{{ item.title }}</a></div>
+                    <div class="result-meta">
+                        <span class="rank">#{{ item.rank }}</span>
+                        {% if item.brand %} · {{ item.brand }}{% endif %}
+                        {% if item.sub_category %} · {{ item.sub_category }}{% endif %}
+                        {% if item.duplicates %} · <span title="Same title, brand and description">+{{ item.duplicates }} identical listing{{ 's' if item.duplicates > 1 }}</span>{% endif %}
+                    </div>
+                    <div class="result-desc">{{ (item.description or "No description.")|truncate(230) }}</div>
+                    <div class="mt-1" style="font-size:.85em">
+                        <a href="{{ details }}">Details</a> ·
+                        <a href="{{ url_for('external_link', pid=item.pid, qid=qid, rank=item.rank) }}" target="_blank" rel="noopener">View on Flipkart ↗</a>
+                    </div>
+                </div>
+                <div class="result-side">
+                    <div class="price">{{ item.selling_price|price }}</div>
+                    {% if item.discount %}
+                        <div><span class="price-old">{{ item.actual_price|price }}</span>
+                            <span class="badge-off">{{ "%.0f"|format(item.discount) }}% off</span></div>
+                    {% endif %}
+                    <div class="mt-1">
+                        {% if item.average_rating is not none %}<span class="rating">{{ "%.1f"|format(item.average_rating) }} ★</span>
+                        {% else %}<span class="rating none">No rating</span>{% endif %}
+                    </div>
+                    {% if item.out_of_stock %}<div class="mt-1"><span class="oos">Out of stock</span></div>{% endif %}
+                </div>
+            </div>
+        {% endfor %}
+
+        {# ---------- pages ---------- #}
+        {% if response.pages > 1 %}
+            <nav class="pager" aria-label="Pages">
+                {% if response.page > 1 %}<a href="{{ search_url(page=response.page - 1, qid=qid) }}">‹ Previous</a>{% endif %}
+                {% for p in range([1, response.page - 3]|max, [response.pages, response.page + 3]|min + 1) %}
+                    {% if p == response.page %}<span class="current">{{ p }}</span>
+                    {% else %}<a href="{{ search_url(page=p, qid=qid) }}">{{ p }}</a>{% endif %}
+                {% endfor %}
+                {% if response.page < response.pages %}<a href="{{ search_url(page=response.page + 1, qid=qid) }}">Next ›</a>{% endif %}
+            </nav>
+        {% endif %}
+    {% endif %}
 {% endblock %}
 
+{% block scripts %}
+    {% if response.total %}
+    <script>
+        // Load the AI summary after the page is shown (the LLM takes 1-3 seconds).
+        function loadSummary(version) {
+            const box = document.getElementById("summary-text");
+            const note = document.getElementById("summary-note");
+            box.className = "summary-loading";
+            box.textContent = version === "baseline" ? "Generating the baseline summary…" : "Generating a summary of the top results…";
+            fetch("{{ url_for('summary') }}?{{ summary_params|safe }}&version=" + version)
+                .then(r => r.json())
+                .then(data => { box.className = ""; box.innerHTML = data.html || "No summary.";
+                    note.style.display = data.status === "error" ? "none" : ""; })
+                .catch(() => { box.className = ""; box.textContent = "The summary is not available right now.";
+                    note.style.display = "none"; });
+        }
+        let version = "improved";
+        loadSummary(version);
+        document.getElementById("summary-compare").addEventListener("click", function (e) {
+            e.preventDefault();
+            version = version === "improved" ? "baseline" : "improved";
+            this.textContent = version === "improved" ? "Compare with the baseline prompt" : "Back to the improved summary";
+            loadSummary(version);
+        });
+    </script>
+    {% endif %}
+{% endblock %}

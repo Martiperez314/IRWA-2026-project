@@ -1,18 +1,19 @@
 {% extends "base.html" %}
 {% block page_title %}{{ page_title }}{% endblock %}
 {% block content %}
-    <div class="centered">
-        <p>&nbsp;</p>
-        <p>&nbsp;</p>
-        <p>&nbsp;</p>
-        <form class="d-flex" method="POST" onSubmit='return validate();' action="/search">
-            <input class="form-control me-2" name="search-query" type="search" placeholder="Search" aria-label="Search"
-                   autofocus="autofocus">
-            <button class="btn btn-primary" type="submit" onclick='this.form.submit();'>Search</button>
-            <input name="upf-irwa-hidden" type="hidden" value="123">
+    <div class="home">
+        <h1 class="home-title">Find fashion products</h1>
+        <p class="home-sub">28,080 products: clothing, footwear and accessories.</p>
+        <form class="search-form" method="GET" action="{{ url_for('search') }}" role="search">
+            <input class="form-control search-input" name="q" type="search" placeholder="e.g. women cotton printed kurta"
+                   aria-label="Search" autofocus required maxlength="200">
+            <button class="btn btn-primary" type="submit">Search</button>
         </form>
-        <p>&nbsp;</p>
-        <p>&nbsp;</p>
-        <p>&nbsp;</p>
+        <div class="examples">
+            <span>Try:</span>
+            {% for q in examples %}
+                <a class="chip" href="{{ url_for('search', q=q) }}">{{ q }}</a>
+            {% endfor %}
+        </div>
     </div>
 {% endblock %}

@@ -102,14 +102,16 @@ def compute_bm25_idf(index, n_docs):
             for term, postings in index.items()}
 
 
-def rank_bm25(query_terms, docs, index, bm25_idf, doc_lengths, k1=1.2, b=0.75):
+def rank_bm25(query_terms, docs, index, bm25_idf, doc_lengths, k1=1.2, b=0.75, avg_len=None):
     """
     BM25 (Okapi): score(q, d) = sum over query terms of idf(t) * tf * (k1 + 1) / (tf + k1 * (1 - b + b * |d| / avg|d|))
     - k1 limits how much repeating a term helps (tf saturates).
     - b controls how much long products are penalised (b = 0: no length normalisation, b = 1: full).
     Each distinct query term is counted once. Returns [(pid, score), ...] from best to worst.
+    avg_len: average product length; pass it precomputed (web app) to avoid summing 28k lengths per query.
     """
-    avg_len = sum(doc_lengths.values()) / len(doc_lengths)
+    if avg_len is None:
+        avg_len = sum(doc_lengths.values()) / len(doc_lengths)
     terms = [t for t in dict.fromkeys(query_terms) if t in index]
     scores = {}
     for pid in docs:
@@ -185,7 +187,7 @@ def build_product_features(corpus):
     return features
 
 
-def our_score_components(query_terms, docs, index, bm25_idf, doc_lengths, features, weights=None):
+def our_score_components(query_terms, docs, index, bm25_idf, doc_lengths, features, weights=None, avg_len=None):
     """
     Every part of our score for each matching product (useful to explain a ranking):
       text     = BM25 / best BM25 of this query, in (0, 1]
@@ -196,7 +198,7 @@ def our_score_components(query_terms, docs, index, bm25_idf, doc_lengths, featur
                  * w_out_of_stock (if out of stock) * w_gender_mismatch (if the gender does not match)
     """
     w = {**OUR_SCORE_WEIGHTS, **(weights or {})}
-    bm25 = rank_bm25(query_terms, docs, index, bm25_idf, doc_lengths)
+    bm25 = rank_bm25(query_terms, docs, index, bm25_idf, doc_lengths, avg_len=avg_len)
     if not bm25:
         return []
     best = bm25[0][1] or 1.0
